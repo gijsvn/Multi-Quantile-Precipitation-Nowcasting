@@ -64,12 +64,12 @@ class Evaluator:
                     if y_pred.shape[1] == y_true.shape[1] * 3:
                         y_pred = y_pred.view(y_pred.shape[0], 3, y_true.shape[1], y_pred.shape[2], y_pred.shape[3])
 
-                    y_pred = y_pred[:, 0, :, :, :] # Take 50th percentile prediction
-                    # y_pred = y_pred[:, 1, :, :, :] # Take 90th percentile prediction
-                    # y_pred = y_pred[:, 2, :, :, :] # Take 95th percentile prediction
+                        y_pred = y_pred[:, 0, :, :, :] # Take 50th percentile prediction
+                        # y_pred = y_pred[:, 1, :, :, :] # Take 90th percentile prediction
+                        # y_pred = y_pred[:, 2, :, :, :] # Take 95th percentile prediction
             elif self.model == "persistence":
                 # Repeat last input image across all output horizons
-                y_pred = x[:, -1, :, :].repeat(1, y_true.shape[1], 1, 1)
+                y_pred = x[:, -1, :, :].unsqueeze(1).repeat(1, y_true.shape[1], 1, 1)
 
             if y_pred.shape != y_true.shape:
                 raise ValueError(f"Shape mismatch: y_pred {y_pred.shape}, y_true {y_true.shape}")
@@ -80,9 +80,6 @@ class Evaluator:
             if threshold_metrics is None:
                 threshold_metrics: Dict[float, np.ndarray] = {
                     thr: np.zeros((T, 4), dtype=np.float64) for thr in rain_thresholds
-                }
-                neighborhood_metrics: Dict[float, np.ndarray] = {
-                    thr: np.zeros((T, 3), dtype=np.float64) for thr in rain_thresholds
                 }
                 mse_sums = np.zeros(T, dtype=np.float64)
                 mae_sums = np.zeros(T, dtype=np.float64)

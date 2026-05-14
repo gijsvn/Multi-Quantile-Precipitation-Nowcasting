@@ -1,3 +1,11 @@
+"""
+Train a SmaAt-UNet-based precipitation nowcasting model.
+
+The script saves training logs, model checkpoints, and a JSON configuration file
+for each training run.
+"""
+
+import argparse
 import datetime
 import pathlib
 import random
@@ -18,131 +26,329 @@ from models.SmaAt_UNet.model import SmaAt_UNet
 
 SEED = 42
 
-os.environ["PYTHONHASHSEED"] = str(SEED)
-seed_everything(SEED, workers=True)
-
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(SEED)
-
-def main():
-    result_log_dir = pathlib.Path("results")
-    os.makedirs(result_log_dir, exist_ok=True)
-
-    data_file_path = "../hybrid-nowcasting-thesis-v0/data/kevin_18_18.h5" # Replace with your actual data file path
-    num_workers = 0
-        
-    n_input_imgs = 18
-    n_output_imgs = 12
-
-    batch_size = 2 # NOTE: change back to 16
-    learning_rate = 1e-3
-    lr_patience = 4
-
-    max_epochs = 300
-    es_patience = 15
-
-    # NOTE: loss fixen met een argument
-    quantiles = [0.5, 0.9, 0.95]
-    higher_q_weights = 0.5
-
-    loss = MultiQuantilePinballLoss(
-       quantiles=quantiles,
-       quantile_weights=[1.0, higher_q_weights, higher_q_weights],
-       reduction="sum"
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Train a SmaAt-UNet-based precipitation nowcasting model."
     )
 
-    # loss = torch.nn.MSELoss(reduction="sum")
-    # loss = torch.nn.L1Loss(reduction="sum")
+    parser.add_argument(
+        "--data-file",
+        type=pathlib.Path,
+        required=True,
+        help="Path to the HDF5 precipitation dataset.",
+    )
 
-    data = PrecipitationDataModule(
-        file_path=data_file_path,
-        n_input_imgs=n_input_imgs,
-        n_output_imgs=n_output_imgs,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        val_fraction=0.1
+    parser.add_argument(
+        "--result-log-dir",
+        type=pathlib.Path,
+        default=pathlib.Path("results"),
+        help="Directory where logs, checkpoints, and config files are saved.",
+    )
+
+    parser.add_argument(
+        "--n-input-imgs",
+        type=int,
+        default=18,
+        help="Number of input precipitation frames.",
+    )
+
+    parser.add_argument(
+        "--n-output-imgs",
+        type=int,
+        default=12,
+        help="Number of output precipitation frames.",
+    )
+
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="Training batch size.",
+    )
+
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=0,
+        help="Number of dataloader workers.",
+    )
+
+    parser.add_argument(
+        "--val-fraction",
+        type=float,
+        default=0.1,
+        help="Fraction of the training data used for validation.",
+    )
+
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=1e-3,
+        help="Initial learning rate.",
+    )
+
+    parser.add_argument(
+        "--lr-patience",
+        type=int,
+        default=4,
+        help="Patience for the learning-rate scheduler.",
+    )
+
+    parser.add_argument(
+        "--max-epochs",
+        type=int,
+        default=300,
+        help="Maximum number of training epochs.",
+    )
+
+    parser.add_argument(
+        "--es-patience",
+        type=int,
+        default=15,
+        help="Early stopping patience.",
+    )
+
+    parser.add_argument(
+        "--loss",
+        type=str,
+        choices=["quantile", "mse", "l1"],
+        default="quantile",
+        help="Loss function to use.",
+    )
+
+    parser.add_argument(
+        "--quantiles",
+        type=float,
+        nargs="+",
+        default=[0.5, 0.9, 0.95],
+        help="Quantiles used when --loss quantile is selected.",
+    )
+
+    parser.add_argument(
+        "--higher-q-weight",
+        type=float,
+        default=0.5,
+        help="Weight assigned to all quantiles except the first one.",
+    )
+
+    parser.add_argument(
+        "--loss-reduction",
+        type=str,
+        choices=["mean", "sum", "none"],
+        default="sum",
+        help="Reduction method used by the loss function.",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=SEED,
+        help="Random seed.",
+    )
+
+    parser.add_argument(
+        "--log-every-n-steps",
+        type=int,
+        default=100,
+        help="Logging frequency in training steps.",
+    )
+
+    parser.add_argument(
+        "--visualization-indices",
+        type=int,
+        nargs="+",
+        default=[50, 150, 333],
+        help="Validation sample indices visualized during training.",
+    )
+
+    return parser.parse_args()
+
+def set_seed(seed: int) -> None:
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    seed_everything(seed, workers=True)
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+def build_loss(
+        loss_name: str,
+        quantiles: list[float],
+        higher_q_weight: float,
+        reduction: str,
+    ) -> torch.nn.Module:
+    if loss_name == "quantile":
+        quantile_weights = [1.0] + [higher_q_weight] * (len(quantiles) - 1)
+
+        return MultiQuantilePinballLoss(
+            quantiles=quantiles,
+            quantile_weights=quantile_weights,
+            reduction=reduction,
+        )
+
+    if loss_name == "mse":
+        return torch.nn.MSELoss(reduction=reduction)
+
+    if loss_name == "l1":
+        return torch.nn.L1Loss(reduction=reduction)
+
+    raise ValueError(f"Unknown loss function: {loss_name}")
+
+def build_data_module(args: argparse.Namespace) -> PrecipitationDataModule:
+    return PrecipitationDataModule(
+        file_path=args.data_file,
+        n_input_imgs=args.n_input_imgs,
+        n_output_imgs=args.n_output_imgs,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        val_fraction=args.val_fraction,
+    )
+
+def build_model(
+        args: argparse.Namespace,
+        loss: torch.nn.Module,
+    ) -> LightningBaseModel:
+    is_quantile_loss = isinstance(loss, MultiQuantilePinballLoss)
+    n_output_channels = args.n_output_imgs * (
+        len(args.quantiles) if is_quantile_loss else 1
     )
 
     backbone = SmaAt_UNet(
-        in_channels=n_input_imgs,
-        out_channels=n_output_imgs*3, # NOTE: dit fixen met een argument
+        in_channels=args.n_input_imgs,
+        out_channels=n_output_channels,
         kernels_per_layer=2,
         bilinear=True,
-        reduction_ratio=16
+        reduction_ratio=16,
     )
 
     model = LightningBaseModel(
         backbone=backbone,
-        learning_rate=learning_rate,
-        lr_patience=lr_patience,
+        learning_rate=args.learning_rate,
+        lr_patience=args.lr_patience,
         loss=loss,
-        quantiles=quantiles,
-        n_output_imgs=n_output_imgs
+        quantiles=args.quantiles if is_quantile_loss else None,
+        n_output_imgs=args.n_output_imgs
     )
 
-    run_nr = 1
-    logging_file_name = backbone.name + "_" + datetime.date.today().strftime("%Y-%m-%d") + f"_run-{run_nr}"
-    while os.path.exists(result_log_dir / logging_file_name):
-        run_nr += 1
-        logging_file_name = backbone.name + "_" + datetime.date.today().strftime("%Y-%m-%d") + f"_run-{run_nr}"
+    return model
 
-    logger = CSVLogger(
+def create_logger(result_log_dir: pathlib.Path, model_name: str) -> CSVLogger:
+    result_log_dir.mkdir(parents=True, exist_ok=True)
+
+    run_nr = 1
+    date_str = datetime.date.today().strftime("%Y-%m-%d")
+    logging_file_name = f"{model_name}_{date_str}_run-{run_nr}"
+
+    while (result_log_dir / logging_file_name).exists():
+        run_nr += 1
+        logging_file_name = f"{model_name}_{date_str}_run-{run_nr}"
+
+    return CSVLogger(
         save_dir=result_log_dir,
         name=logging_file_name,
-        version="."
+        version=".",
+    )
+
+def save_config(
+        args: argparse.Namespace,
+        log_dir: pathlib.Path,
+        loss: torch.nn.Module
+    ) -> None:
+    is_quantile_loss = isinstance(loss, MultiQuantilePinballLoss)
+
+    config_dict = {
+        "data_file": str(args.data_file),
+        "result_log_dir": str(args.result_log_dir),
+        "n_input_imgs": args.n_input_imgs,
+        "n_output_imgs": args.n_output_imgs,
+        "batch_size": args.batch_size,
+        "num_workers": args.num_workers,
+        "val_fraction": args.val_fraction,
+        "learning_rate": args.learning_rate,
+        "lr_patience": args.lr_patience,
+        "max_epochs": args.max_epochs,
+        "es_patience": args.es_patience,
+        "loss": loss._get_name(),
+        "loss_reduction": args.loss_reduction,
+        "quantiles": args.quantiles if is_quantile_loss else None,
+        "quantile_weights": (
+            loss.quantile_weights.tolist()
+            if is_quantile_loss and hasattr(loss, "quantile_weights")
+            else None
+        ),
+        "seed": args.seed
+    }
+
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(log_dir / "config.json", "w", encoding="utf-8") as f:
+        json.dump(config_dict, f, indent=4)
+
+def main(args: argparse.Namespace) -> None:
+    loss = build_loss(
+        loss_name=args.loss,
+        quantiles=args.quantiles,
+        higher_q_weight=args.higher_q_weight,
+        reduction=args.loss_reduction,
+    )
+
+    data_module = build_data_module(args)
+    model = build_model(args, loss)
+
+    logger = create_logger(
+        result_log_dir=args.result_log_dir,
+        model_name=model.backbone.name,
     )
 
     checkpoint = ModelCheckpoint(
-        monitor="val_loss", 
-        mode="min", 
-        save_top_k=1, 
+        monitor="val_loss",
+        mode="min",
+        save_top_k=1,
         save_last=False,
-        filename='{epoch}-{val_loss:.5f}'
+        filename="{epoch}-{val_loss:.5f}",
     )
 
     early_stop_cb = EarlyStopping(
         monitor="val_loss",
         mode="min",
-        patience=es_patience,
+        patience=args.es_patience,
         verbose=True,
     )
 
     lr_monitor = LearningRateMonitor(logging_interval="epoch")
     loss_plotter = LossPlotCallback()
-    prediction_visualizer = VisualizationCallback(val_indices=[50, 150, 333])
-
-    trainer = Trainer(
-        max_epochs=max_epochs,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
-        logger=logger,
-        callbacks=[loss_plotter, prediction_visualizer, checkpoint, early_stop_cb, lr_monitor],
-        log_every_n_steps=100,
-        enable_progress_bar=True
+    prediction_visualizer = VisualizationCallback(
+        val_indices=args.visualization_indices
     )
 
-    config_dict = {
-        "data_file": data_file_path,
-        "n_input_imgs": n_input_imgs,
-        "n_output_imgs": n_output_imgs,
-        "batch_size": batch_size,
-        "learning_rate": learning_rate,
-        "lr_patience": lr_patience,
-        "max_epochs": max_epochs,
-        "es_patience": es_patience,
-        "model_backbone": backbone.name,
-        "loss": loss._get_name(),
-        "quantiles": quantiles,
-        "quantile_weights": loss.quantile_weights.tolist() if hasattr(loss, "quantile_weights") else None
-    }
+    trainer = Trainer(
+        max_epochs=args.max_epochs,
+        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        logger=logger,
+        callbacks=[
+            loss_plotter,
+            prediction_visualizer,
+            checkpoint,
+            early_stop_cb,
+            lr_monitor,
+        ],
+        log_every_n_steps=args.log_every_n_steps,
+        enable_progress_bar=True,
+    )
 
-    os.makedirs(trainer.logger.log_dir, exist_ok=True)
-    with open(os.path.join(trainer.logger.log_dir, "config.json"), "w") as f:
-        json.dump(config_dict, f, indent=4)
+    log_dir = pathlib.Path(trainer.logger.log_dir)
+    save_config(
+        args=args,
+        log_dir=log_dir,
+        loss=loss
+    )
 
-    trainer.fit(model, datamodule=data)
+    trainer.fit(model, datamodule=data_module)
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    set_seed(args.seed)
+    main(args)
