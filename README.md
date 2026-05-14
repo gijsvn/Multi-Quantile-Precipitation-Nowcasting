@@ -1,6 +1,6 @@
-# Beyond MSE: Improving Precipitation Nowcasting with Multi-Quantile Regression
+# Improving Precipitation Nowcasting with Multi-Quantile Regression
 
-Official implementation for the paper **"Beyond MSE: Improving Precipitation Nowcasting with Multi-Quantile Regression"** by Gijs van Nieuwkoop and Siamak Mehrkanoon.
+Official implementation for the paper **"THIS IS A PLACEHOLDER"** by Gijs van Nieuwkoop and Siamak Mehrkanoon.
 
 This repository investigates whether a deterministic precipitation nowcasting architecture can be improved by changing the training objective rather than the model architecture. Using **SmaAt-UNet** as a controlled test case, the experiments compare conventional pointwise losses, namely MSE and MAE, with a **multi-quantile pinball loss**. The quantile model predicts multiple conditional quantiles of future precipitation, with the median output used as the central deterministic nowcast and higher quantiles used as risk-sensitive forecasts for heavier precipitation.
 
@@ -324,25 +324,20 @@ This repository builds on the SmaAt-UNet architecture for precipitation nowcasti
 
 If you use this code, please cite the accompanying paper:
 
-```bibtex
-@misc{vannieuwkoop_beyond_mse_quantile_nowcasting,
-  title  = {Beyond MSE: Improving Precipitation Nowcasting with Multi-Quantile Regression},
-  author = {van Nieuwkoop, Gijs and Mehrkanoon, Siamak},
-  year   = {TODO},
-  note   = {Preprint}
-}
+```
+PLACEHOLDER
 ```
 
 Please also cite SmaAt-UNet if you use the architecture:
 
 ```bibtex
-@article{trebing2021smaatunet,
-  title   = {SmaAt-UNet: Precipitation Nowcasting using a Small Attention-UNet Architecture},
-  author  = {Trebing, Kevin and Sta\'{n}czyk, Tomasz and Mehrkanoon, Siamak},
-  journal = {Pattern Recognition Letters},
-  volume  = {145},
-  pages   = {178--186},
-  year    = {2021},
-  doi     = {10.1016/j.patrec.2021.01.036}
+@article{trebing2021smaat,
+  title={SmaAt-UNet: Precipitation nowcasting using a small attention-UNet architecture},
+  author={Trebing, Kevin and Staǹczyk, Tomasz and Mehrkanoon, Siamak},
+  journal={Pattern Recognition Letters},
+  volume={145},
+  pages={178--186},
+  year={2021},
+  publisher={Elsevier}
 }
 ```
