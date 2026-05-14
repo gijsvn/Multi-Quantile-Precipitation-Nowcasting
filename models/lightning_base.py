@@ -65,10 +65,6 @@ class LightningBaseModel(pl.LightningModule):
         x, y_true = batch
         y_pred = self(x)
 
-        # NOTE: I don't think I need this, but keep it for now, remove later
-        # if y_hat.dim() == y.dim() + 1 and y_hat.size(1) == 1:
-        #     y_hat = y_hat.squeeze(1)
-
         loss = self._get_loss(y_pred, y_true)
 
         self.log(f"train_loss", loss, prog_bar=True, on_epoch=True, on_step=False)
