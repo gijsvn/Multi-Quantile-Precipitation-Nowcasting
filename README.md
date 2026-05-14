@@ -19,7 +19,7 @@ In the default configuration:
 - default quantiles: 0.50, 0.90, 0.95
 
 <p align="center">
-  <img src="assets/figure_2_multi_quantile_training.png" width="850">
+  <img src="assets/SmaAt-UNet quantile training.png" width="850">
 </p>
 
 <p align="center">
@@ -306,7 +306,7 @@ In the reported test-set results, the quantile model obtains the lowest regressi
 At higher precipitation thresholds, the upper quantile outputs increase detection of heavy precipitation events, at the cost of more false alarms. This makes them useful for applications where missed heavy-rainfall events are especially costly.
 
 <p align="center">
-  <img src="assets/figure_5_prediction_examples.png" width="850">
+  <img src="assets/prediction_visualizations.png" width="850">
 </p>
 
 <p align="center">
