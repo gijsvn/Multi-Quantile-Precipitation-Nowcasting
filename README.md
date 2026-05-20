@@ -47,7 +47,7 @@ The main entry-point scripts are:
 │   ├── SmaAt_UNet/                       # SmaAt-UNet backbone implementation
 │   └── lightning_base.py                 # PyTorch Lightning wrapper
 ├── checkpoints/
-│   ├── paper/                            # Weights of models used in original paper
+│   └── paper/                            # Weights of models used in original paper
 ├── util/
 │   ├── callbacks.py                      # Training callbacks and visualizations
 │   ├── evaluate_model.py                 # Verification metrics and prediction plots
@@ -104,6 +104,7 @@ checkpoints/paper/
 │   └── model.ckpt
 └── quantile/
     └── model.ckpt
+```
 
 ## Training
 
