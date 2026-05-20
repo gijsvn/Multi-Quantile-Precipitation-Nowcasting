@@ -46,6 +46,8 @@ The main entry-point scripts are:
 ├── models/
 │   ├── SmaAt_UNet/                       # SmaAt-UNet backbone implementation
 │   └── lightning_base.py                 # PyTorch Lightning wrapper
+├── checkpoints/
+│   ├── paper/                            # Weights of models used in original paper
 ├── util/
 │   ├── callbacks.py                      # Training callbacks and visualizations
 │   ├── evaluate_model.py                 # Verification metrics and prediction plots
@@ -89,6 +91,19 @@ The dataset created by `create_datasets.py` is compatible with `util.load_datase
 ```bash
 --data-file data/precipitation_dataset.h5
 ```
+
+## Pretrained paper checkpoints
+
+The trained model checkpoints used for the paper results are provided in `checkpoints/paper/`.
+
+```text
+checkpoints/paper/
+├── mse/
+│   └── model.ckpt
+├── mae/
+│   └── model.ckpt
+└── quantile/
+    └── model.ckpt
 
 ## Training
 
