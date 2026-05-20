@@ -30,6 +30,7 @@ The main entry-point scripts are:
 
 | Script | Purpose |
 | --- | --- |
+| `create_datasets.py` | Generate filtered datasets as used in the paper. |
 | `train.py` | Train a SmaAt-UNet-based nowcasting model. |
 | `eval.py` | Evaluate a trained model on the validation or test split. |
 | `eval_persistence.py` | Evaluate the persistence baseline. |
@@ -51,6 +52,7 @@ The main entry-point scripts are:
 │   ├── load_dataset.py                   # Precipitation data module
 │   ├── quantile_loss.py                  # Multi-quantile pinball loss
 │   └── visualization.py                  # Plotting utilities
+├── create_datasets.py                    # Create filtered datasets
 ├── train.py                              # Train MSE, MAE, or quantile models
 ├── eval.py                               # Evaluate trained models
 ├── eval_persistence.py                   # Evaluate persistence baseline
@@ -80,11 +82,9 @@ For GPU training, install the PyTorch version matching your CUDA setup from the 
 
 ## Data
 
-The scripts expect an HDF5 precipitation dataset compatible with `util.load_dataset.PrecipitationDataModule`.
+The datasets used in for model training and evaluation in the paper were created by filtering an unprocessed dataset of precipitation maps of the Netherlands and surrounding areas. This unprocessed dataset contains precipitation maps from 2016 to 2019 at 5-minute intervals, resulting in about 420,000 images. This dataset is available upon request (s.mehrkanoon@uu.nl) and can be adapted to the task formulation of the paper by processing it using `create_datasets.py`. 
 
-In the paper, the experiments use radar precipitation maps over the Netherlands at 5-minute resolution. The task uses 18 past frames as input and predicts the next 12 frames. The dataset itself is not included in this repository.
-
-Use the dataset path when running the scripts:
+The dataset created by `create_datasets.py` is compatible with `util.load_dataset.PrecipitationDataModule`, and can thus be used to call subsequent scripts:
 
 ```bash
 --data-file data/precipitation_dataset.h5
