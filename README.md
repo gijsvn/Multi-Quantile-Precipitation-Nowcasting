@@ -1,4 +1,4 @@
-# Improving Precipitation Nowcasting with Multi-Quantile Regression
+# Beyond MSE: Improving Precipitation Nowcasting with Multi-Quantile Regression
 
 Official implementation for the paper **"THIS IS A PLACEHOLDER"** by Gijs van Nieuwkoop and Siamak Mehrkanoon.
 
