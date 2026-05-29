@@ -341,7 +341,15 @@ This repository builds on the SmaAt-UNet architecture for precipitation nowcasti
 If you use this code, please cite the accompanying paper:
 
 ```
-PLACEHOLDER
+@misc{vannieuwkoop2026mseimprovingprecipitationnowcasting,
+      title={Beyond MSE: Improving Precipitation Nowcasting with Multi-Quantile Regression}, 
+      author={Gijs van Nieuwkoop and Siamak Mehrkanoon},
+      year={2026},
+      eprint={2605.30122},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2605.30122}, 
+}
 ```
 
 Please also cite SmaAt-UNet if you use the architecture:
