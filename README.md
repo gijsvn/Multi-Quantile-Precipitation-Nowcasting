@@ -351,17 +351,3 @@ If you use this code, please cite the accompanying paper:
       url={https://arxiv.org/abs/2605.30122}, 
 }
 ```
-
-Please also cite SmaAt-UNet if you use the architecture:
-
-```bibtex
-@article{trebing2021smaat,
-  title={SmaAt-UNet: Precipitation nowcasting using a small attention-UNet architecture},
-  author={Trebing, Kevin and Staǹczyk, Tomasz and Mehrkanoon, Siamak},
-  journal={Pattern Recognition Letters},
-  volume={145},
-  pages={178--186},
-  year={2021},
-  publisher={Elsevier}
-}
-```
