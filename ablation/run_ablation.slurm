@@ -29,13 +29,13 @@ set -euo pipefail
 
 # ----------------------------- PLACEHOLDERS ----------------------------------
 REPO_DIR="$HOME/Multi-Quantile-Precipitation-Nowcasting"     # PLACEHOLDER
-DATA_FILE="/projects/0/<project>/data/precipitation_dataset.h5" # PLACEHOLDER
-OUT_ROOT="/projects/0/<project>/ablation_results"             # PLACEHOLDER (persistent storage, not $TMPDIR)
-VENV="$HOME/venvs/mqpn"                                       # PLACEHOLDER
+DATA_FILE="/home/gvannieuwkoop/hybrid-nowcasting-thesis-v0/data/kevin_18_18.h5" # PLACEHOLDER
+OUT_ROOT="/home/gvannieuwkoop/Multi-Quantile-Precipitation-Nowcasting/ablation/results"             # PLACEHOLDER (persistent storage, not $TMPDIR)
+VENV="$HOME/Multi-Quantile-Precipitation-Nowcasting/ablation/.venv" # PLACEHOLDER
 
 module purge
 module load 2024                                              # PLACEHOLDER: check `module avail`
-module load Python/3.12.3-GCCcore-13.3.0                      # PLACEHOLDER
+module load 2024 Python/3.12.3-GCCcore-13.3.0                 # PLACEHOLDER
 source "$VENV/bin/activate"
 # -----------------------------------------------------------------------------
 
