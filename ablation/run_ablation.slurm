@@ -8,8 +8,12 @@
 # and evaluates it on the test set (test_results.json).
 # Afterwards run aggregate_ablation.py to get the mean +/- std table.
 #
-# Submit:   sbatch run_ablation.slurm
-# Rerun one task (e.g. index 7):   sbatch --array=7 run_ablation.slurm
+# Submit all:     mkdir -p logs && sbatch run_ablation.slurm
+# Submit a subset: sbatch --array=0-2 run_ablation.slurm
+# Finished tasks are skipped, so resubmitting the full array resumes.
+# Task index = variant_index * 5 + seed_index:
+#   0-4 mae | 5-9 median_pinball | 10-14 w0 | 15-19 median_x3 | 20-24 full
+# An unfinished (killed) task restarts its training from scratch.
 # =============================================================================
 #SBATCH --job-name=mq-ablation
 #SBATCH --partition=gpu_h100            # PLACEHOLDER: or gpu_a100
@@ -58,6 +62,12 @@ ARGS="${VARIANTS[$V_IDX]#*|}"
 echo "Task $SLURM_ARRAY_TASK_ID: variant=$NAME seed=$SEED args=[$ARGS] host=$(hostname)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
+# Skip runs that already finished, so the whole array can be resubmitted safely
+if [[ -f "$OUT_ROOT/eval/$NAME/seed$SEED/test_results.json" ]]; then
+  echo "Already done, skipping: $NAME seed $SEED"
+  exit 0
+fi
+
 # Copy the dataset to node-local scratch for fast I/O
 cp "$DATA_FILE" "$TMPDIR/data.h5"
 
@@ -65,6 +75,7 @@ cp "$DATA_FILE" "$TMPDIR/data.h5"
 # would race if several array tasks shared a directory.
 TRAIN_DIR="$OUT_ROOT/train/$NAME/seed$SEED"
 EVAL_DIR="$OUT_ROOT/eval/$NAME/seed$SEED"
+rm -rf "$TRAIN_DIR"   # drop any partial run from an earlier, interrupted attempt
 mkdir -p "$TRAIN_DIR" "$EVAL_DIR"
 
 cd "$REPO_DIR"
