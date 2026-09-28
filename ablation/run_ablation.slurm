@@ -2,8 +2,8 @@
 # =============================================================================
 # Ablation: where do the multi-quantile gains come from? (R2 / editor)
 #
-# 3 new variants x 5 seeds = 15 array tasks. The MAE and full-quantile rows
-# reuse the 5 original paper runs of each (see README). Each task trains one model with the
+# 2 new variants x 5 seeds = 10 array tasks. The MAE, w=0 and full-quantile
+# rows reuse the 5 original runs of each (see README). Each task trains one model with the
 # unmodified repo code, copies the best checkpoint + config.json into
 #   $OUT_ROOT/eval/<variant>/seed<seed>/
 # and evaluates it on the test set (test_results.json).
@@ -13,7 +13,7 @@
 # Submit a subset: sbatch --array=0-2 run_ablation.slurm
 # Finished tasks are skipped, so resubmitting the full array resumes.
 # Task index = variant_index * 5 + seed_index:
-#   0-4 median_pinball | 5-9 w0 | 10-14 median_x3
+#   0-4 median_pinball | 5-9 median_x3
 # An unfinished (killed) task restarts its training from scratch.
 # =============================================================================
 #SBATCH --job-name=mq-ablation
@@ -21,7 +21,7 @@
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=16              # 1/4 of an H100 node
 #SBATCH --time=12:00:00                 # PLACEHOLDER: set from one paper run's wall time + margin
-#SBATCH --array=0-14%8                  # 15 tasks, at most 8 at once
+#SBATCH --array=0-9%8                   # 10 tasks, at most 8 at once
 #SBATCH --output=logs/%x_%A_%a.out
 #SBATCH --error=logs/%x_%A_%a.err
 # #SBATCH --account=<PLACEHOLDER>       # only if your project requires it
@@ -44,13 +44,13 @@ SEEDS=(0 1 2 3 4)
 
 # name | train.py arguments (everything else stays at the paper defaults:
 # Adam 1e-3, batch 16, LR patience 4, early stopping 15, sum reduction)
-# MAE and full model are not retrained: the original paper runs are reused.
-# To retrain them anyway, append these and raise --array to 0-24:
+# MAE, w=0 and full model are not retrained: the original runs are reused.
+# To retrain one anyway, append its line and raise --array by 5 per variant:
 #   "mae|--loss l1"
+#   "w0|--loss quantile --quantiles 0.5 0.9 0.95 --higher-q-weight 0.0"
 #   "full|--loss quantile --quantiles 0.5 0.9 0.95 --higher-q-weight 0.5"
 VARIANTS=(
   "median_pinball|--loss quantile --quantiles 0.5"
-  "w0|--loss quantile --quantiles 0.5 0.9 0.95 --higher-q-weight 0.0"
   "median_x3|--loss quantile --quantiles 0.5 0.5 0.5 --higher-q-weight 0.5"
 )
 

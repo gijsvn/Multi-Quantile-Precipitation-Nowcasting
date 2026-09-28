@@ -8,10 +8,9 @@
 | Variant | Channels | train.py args | Why |
 |---|---|---|---|
 | `median_pinball` | 12 | `--loss quantile --quantiles 0.5` | = ½·L1; confirms it matches MAE |
-| `w0` | 36 | `--quantiles 0.5 0.9 0.95 --higher-q-weight 0` | extra channels, no upper-quantile gradient, now on **test** |
 | `median_x3` | 36 | `--quantiles 0.5 0.5 0.5 --higher-q-weight 0.5` | extra heads + extra gradient, but **no asymmetry** |
 
-5 seeds each (0–4) = 15 runs. The **MAE** and **full model** rows reuse the 5 original paper runs of each (see "Adding the original runs" below). `median_x3` keeps the full model's weights (1, 0.5, 0.5), so the only difference from `full` is the quantile levels.
+5 seeds each (0–4) = 10 runs. The **MAE**, **w = 0** (`w0`, 36 channels, no upper-quantile gradient; now evaluated on **test**) and **full model** rows reuse the 5 original runs of each (see "Adding the original runs" below). `median_x3` keeps the full model's weights (1, 0.5, 0.5), so the only difference from `full` is the quantile levels.
 
 Reading the table: `w0 ≈ mae` means channels alone don't help; `median_x3 ≈ full` would mean the gain is just extra gradient/heads; `full` better than `median_x3` means the upper-quantile (asymmetric) signal is what helps.
 
@@ -20,7 +19,7 @@ Caveat: if the original 5 runs all used the default `--seed 42`, their spread on
 **No repo code changes are needed**: the loss already accepts repeated quantiles, `--higher-q-weight 0` works, `--seed` exists, and `eval.py` picks head 0 (the q=0.5 head) for all 36-channel models.
 
 ## Files
-- `run_ablation.slurm`: SLURM array (15 tasks): train, copy best checkpoint + config, evaluate on test.
+- `run_ablation.slurm`: SLURM array (10 tasks): train, copy best checkpoint + config, evaluate on test.
 - `aggregate_ablation.py`: builds the table (mean ± std over seeds, plus best-of-5 by val loss to match the paper's protocol). Writes `ablation_summary.csv/.md`, `ablation_best_of_seeds.csv`, `ablation_all_runs.csv`.
 
 ## Running on Snellius
@@ -32,11 +31,11 @@ Caveat: if the original 5 runs all used the default `--seed 42`, their spread on
    pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
    ```
 3. From the directory holding the script: `mkdir -p logs && sbatch run_ablation.slurm`.
-   Task numbers: 0–4 `median_pinball`, 5–9 `w0`, 10–14 `median_x3`. Run a subset with e.g. `sbatch --array=0-2 run_ablation.slurm`; finished tasks are skipped, so resubmitting the full array resumes.
+   Task numbers: 0–4 `median_pinball`, 5–9 `median_x3`. Run a subset with e.g. `sbatch --array=0-2 run_ablation.slurm`; finished tasks are skipped, so resubmitting the full array resumes.
 4. When all tasks are done: `python aggregate_ablation.py --root <OUT_ROOT>`.
 
-## Adding the original runs (MAE and full model)
-For each of the 5 original runs, with `<variant>` = `mae` or `full` and N = 0–4:
+## Adding the original runs (MAE, w = 0 and full model)
+For each of the 5 original runs, with `<variant>` = `mae`, `w0` or `full` and N = 0–4:
 ```bash
 D=<OUT_ROOT>/eval/<variant>/seedN; mkdir -p $D
 cp <old_run>/checkpoints/*.ckpt $D/model.ckpt
