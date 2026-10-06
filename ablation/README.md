@@ -39,6 +39,20 @@ Caveat: if the original 5 runs all used the default `--seed 42`, their spread on
 Fill in the three lists in `import_original_runs.slurm` (5 entries each), then `sbatch import_original_runs.slurm`.
 Each entry is either an original run directory (re-evaluated on test with the current `eval.py`; recommended) or an existing `<run>_test_results.json` (copied as is; for quantile runs use the `_q0` = q50 file). Results land in `<OUT_ROOT>/eval/{mae,w0,full}/seed0-4/`, next to the new runs.
 
+## Building the table locally (alternative)
+Copy only the result files from Snellius and add your existing five-run results with `--extra`:
+```bash
+# Snellius
+cd <OUT_ROOT> && tar czf ~/ablation_eval.tgz $(find eval -name '*.json' -o -name '*.txt')
+# laptop, from hybrid-nowcasting-thesis-v0
+scp <user>@snellius.surf.nl:ablation_eval.tgz evaluation_models/ablation_runs/
+cd evaluation_models/ablation_runs && tar xzf ablation_eval.tgz && cd ../..
+python aggregate_ablation.py --root evaluation_models/ablation_runs \
+  --extra "mae=evaluation_models/five_run_aggregates/five_run_loss_experiments/<MAE folder>/*_test_results.json" \
+  --extra "full=evaluation_models/five_run_aggregates/five_run_loss_experiments/<quantile folder>/*_q0_test_results.json" \
+  --extra "w0=<folder with the w = 0 test results>/*_q0_test_results.json"
+```
+
 ## Building the table
 `python aggregate_ablation.py --root <OUT_ROOT>` prints and saves the table: mean ± 95% CI half-width over the 5 runs (Student t, df = 4, = 1.24 × sample std), the same format as the revised main results table. `ablation_summary.csv` also has the plain std, and `ablation_all_runs.csv` every individual run.
 

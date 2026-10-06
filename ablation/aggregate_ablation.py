@@ -10,9 +10,17 @@ run_ablation.slurm) and prints/saves, per variant:
 
 Usage:
     python aggregate_ablation.py --root /projects/0/<project>/ablation_results
+
+Results stored elsewhere (e.g. your earlier five-run evaluations) can be added
+per variant with --extra VARIANT=GLOB, one *_test_results.json file per run:
+    python aggregate_ablation.py --root evaluation_models/ablation_runs \
+        --extra "mae=evaluation_models/five_run_aggregates/five_run_loss_experiments/<MAE folder>/*_test_results.json" \
+        --extra "full=evaluation_models/five_run_aggregates/five_run_loss_experiments/<quantile folder>/*_q0_test_results.json"
+For quantile runs use the _q0 (q50) files.
 """
 
 import argparse
+import glob
 import json
 import pathlib
 import re
@@ -43,30 +51,48 @@ LABELS = {
 }
 
 
-def load_runs(root: pathlib.Path, thresholds: list[str]) -> pd.DataFrame:
+def result_row(res_path: pathlib.Path, variant: str, seed: int,
+               source: str, thresholds: list[str]) -> dict:
+    with open(res_path, encoding="utf-8") as f:
+        res = json.load(f)
+
+    # Best val_loss is encoded in the checkpoint filename, when known
+    m = re.search(r"val_loss=([0-9.eE+-]+?)\.ckpt", source)
+    row = {
+        "variant": variant,
+        "seed": seed,
+        "source": source.strip(),
+        "val_loss": float(m.group(1)) if m else np.nan,
+        "MSE": float(np.mean(res["MSE"])),
+        "MAE": float(np.mean(res["MAE"])),
+    }
+    for thr in thresholds:
+        row[f"CSI@{thr}"] = float(np.mean(res[thr]["CSI"]))
+    return row
+
+
+def load_runs(root: pathlib.Path, thresholds: list[str], extra: list[str]) -> pd.DataFrame:
     rows = []
     for res_path in sorted(root.glob("eval/*/seed*/test_results.json")):
         run_dir = res_path.parent
-        with open(res_path, encoding="utf-8") as f:
-            res = json.load(f)
-
-        val_loss = np.nan
         src = run_dir / "source_checkpoint.txt"
-        if src.exists():
-            m = re.search(r"val_loss=([0-9.eE+-]+?)\.ckpt", src.read_text())
-            if m:
-                val_loss = float(m.group(1))
+        source = src.read_text() if src.exists() else str(res_path)
+        rows.append(result_row(res_path, run_dir.parent.name,
+                               int(run_dir.name.removeprefix("seed")), source, thresholds))
 
-        row = {
-            "variant": run_dir.parent.name,
-            "seed": int(run_dir.name.removeprefix("seed")),
-            "val_loss": val_loss,
-            "MSE": float(np.mean(res["MSE"])),
-            "MAE": float(np.mean(res["MAE"])),
-        }
-        for thr in thresholds:
-            row[f"CSI@{thr}"] = float(np.mean(res[thr]["CSI"]))
-        rows.append(row)
+    for spec in extra:
+        variant, _, pattern = spec.partition("=")
+        files = sorted(glob.glob(pattern))
+        if not variant or not files:
+            raise SystemExit(f"--extra {spec!r}: no files match {pattern!r}")
+        if variant in {r["variant"] for r in rows}:
+            raise SystemExit(f"--extra {spec!r}: variant {variant!r} already has runs under {root}/eval/")
+        print(f"{variant}: {len(files)} runs from {pattern}")
+        for seed, path in enumerate(files):
+            p = pathlib.Path(path)
+            with open(p, encoding="utf-8") as f:
+                source = json.load(f).get("checkpoint", str(p)) if p.suffix == ".json" else str(p)
+            rows.append(result_row(p, variant, seed, str(source), thresholds))
 
     if not rows:
         raise SystemExit(f"No test_results.json found under {root}/eval/")
@@ -77,9 +103,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=pathlib.Path, required=True)
     parser.add_argument("--thresholds", nargs="+", default=["0.5", "10.0", "20.0"])
+    parser.add_argument("--extra", action="append", default=[], metavar="VARIANT=GLOB",
+                        help="Add runs from existing *_test_results.json files (repeatable).")
     args = parser.parse_args()
 
-    df = load_runs(args.root, args.thresholds)
+    df = load_runs(args.root, args.thresholds, args.extra)
     metrics = ["MSE", "MAE"] + [f"CSI@{t}" for t in args.thresholds]
     variants = [v for v in ORDER if v in set(df.variant)] + sorted(
         set(df.variant) - set(ORDER)
