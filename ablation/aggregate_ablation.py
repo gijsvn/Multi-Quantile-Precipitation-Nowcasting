@@ -63,12 +63,55 @@ def result_row(res_path: pathlib.Path, variant: str, seed: int,
         "seed": seed,
         "source": source.strip(),
         "val_loss": float(m.group(1)) if m else np.nan,
-        "MSE": float(np.mean(res["MSE"])),
-        "MAE": float(np.mean(res["MAE"])),
+        "MSE": float(np.mean(_find(res, "MSE", res_path))),
+        "MAE": float(np.mean(_find(res, "MAE", res_path))),
     }
     for thr in thresholds:
-        row[f"CSI@{thr}"] = float(np.mean(res[thr]["CSI"]))
+        row[f"CSI@{thr}"] = float(np.mean(_csi(_find(res, thr, res_path), res_path)))
     return row
+
+
+def _lookup(d, name: str):
+    """Case-insensitive key lookup, searching nested dicts; None if absent."""
+    if not isinstance(d, dict):
+        return None
+    for k, v in d.items():
+        if str(k).lower() == name.lower():
+            return v
+    for v in d.values():
+        found = _lookup(v, name)
+        if found is not None:
+            return found
+    return None
+
+
+def _find(d: dict, name: str, path: pathlib.Path):
+    value = _lookup(d, name)
+    if value is None:
+        raise SystemExit(f"{path}: no '{name}' entry. Top-level keys: {list(d)}")
+    return value
+
+
+def _csi(block, path: pathlib.Path) -> np.ndarray:
+    """CSI per lead time from a threshold block, whichever way it was stored."""
+    csi = _lookup(block, "CSI")
+    if csi is not None:
+        return np.asarray(csi, dtype=float)
+    tp, fp, fn = (_lookup(block, k) for k in ("tp", "fp", "fn"))
+    if tp is not None and fp is not None and fn is not None:
+        tp, fp, fn = (np.asarray(x, dtype=float) for x in (tp, fp, fn))
+        return np.divide(tp, tp + fp + fn, out=np.zeros_like(tp), where=(tp + fp + fn) > 0)
+    pod = _lookup(block, "POD")
+    if pod is None:
+        pod = _lookup(block, "Recall")
+    far = _lookup(block, "FAR")
+    if pod is not None and far is not None:
+        pod, far = np.asarray(pod, dtype=float), np.asarray(far, dtype=float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            csi = 1.0 / (1.0 / pod + 1.0 / (1.0 - far) - 1.0)
+        return np.nan_to_num(csi)
+    keys = list(block) if isinstance(block, dict) else type(block).__name__
+    raise SystemExit(f"{path}: can't find CSI (or TP/FP/FN, or POD+FAR) in a threshold entry. Its keys: {keys}")
 
 
 def load_runs(root: pathlib.Path, thresholds: list[str], extra: list[str]) -> pd.DataFrame:
