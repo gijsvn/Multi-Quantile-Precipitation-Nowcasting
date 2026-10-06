@@ -20,7 +20,8 @@ Caveat: if the original 5 runs all used the default `--seed 42`, their spread on
 
 ## Files
 - `run_ablation.slurm`: SLURM array (10 tasks): train, copy best checkpoint + config, evaluate on test.
-- `aggregate_ablation.py`: builds the table (mean ± std over seeds, plus best-of-5 by val loss to match the paper's protocol). Writes `ablation_summary.csv/.md`, `ablation_best_of_seeds.csv`, `ablation_all_runs.csv`.
+- `import_original_runs.slurm`: brings the 5 original MAE, w = 0 and full-model runs into the same results folder.
+- `aggregate_ablation.py`: builds the table (mean ± std over seeds, mean ± 95% CI over runs, plus best-of-5 by val loss as in the original paper). Writes `ablation_summary.csv/.md`, `ablation_best_of_seeds.csv`, `ablation_all_runs.csv`.
 
 ## Running on Snellius
 1. Fill in the `PLACEHOLDER` lines (repo path, dataset path, output dir on project space, venv, modules, partition, time, account).
@@ -35,14 +36,10 @@ Caveat: if the original 5 runs all used the default `--seed 42`, their spread on
 4. When all tasks are done: `python aggregate_ablation.py --root <OUT_ROOT>`.
 
 ## Adding the original runs (MAE, w = 0 and full model)
-For each of the 5 original runs, with `<variant>` = `mae`, `w0` or `full` and N = 0–4:
-```bash
-D=<OUT_ROOT>/eval/<variant>/seedN; mkdir -p $D
-cp <old_run>/checkpoints/*.ckpt $D/model.ckpt
-cp <old_run>/config.json $D/
-ls <old_run>/checkpoints/*.ckpt > $D/source_checkpoint.txt
-python ../eval.py --model-path $D/model.ckpt --data-file <data.h5> --evaluation-set test
-```
-`aggregate_ablation.py` then picks them up next to the new runs.
+Fill in the three lists in `import_original_runs.slurm` (5 entries each), then `sbatch import_original_runs.slurm`.
+Each entry is either an original run directory (re-evaluated on test with the current `eval.py`; recommended) or an existing `<run>_test_results.json` (copied as is; for quantile runs use the `_q0` = q50 file). Results land in `<OUT_ROOT>/eval/{mae,w0,full}/seed0-4/`, next to the new runs.
 
-Tested locally end to end (all 5 variants train, evaluate and aggregate) on a tiny synthetic dataset with 1 epoch, CPU only.
+## Building the table
+`python aggregate_ablation.py --root <OUT_ROOT>` prints and saves the table: mean ± 95% CI half-width over the 5 runs (Student t, df = 4, = 1.24 × sample std), the same format as the revised main results table. `ablation_summary.csv` also has the plain std, and `ablation_all_runs.csv` every individual run.
+
+Tested locally end to end (training, import, evaluation and aggregation) on a tiny synthetic dataset with 1 epoch, CPU only.

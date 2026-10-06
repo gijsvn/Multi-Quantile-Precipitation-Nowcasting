@@ -3,7 +3,8 @@ Aggregate the ablation runs into one table.
 
 Reads <root>/eval/<variant>/seed<N>/test_results.json (written by eval.py via
 run_ablation.slurm) and prints/saves, per variant:
-  - mean +/- std over seeds of test MSE, MAE and CSI at each threshold
+  - mean +/- 95% CI half-width over seeds (Student t, df = n-1; for n = 5 this
+    is 1.24 x sample std) of test MSE, MAE and CSI at each threshold
     (metrics averaged over the 12 lead times, as in the paper tables);
   - the paper's protocol: the seed with the lowest validation loss.
 
@@ -18,6 +19,18 @@ import re
 
 import numpy as np
 import pandas as pd
+
+# Two-sided 95% Student t quantiles, t_{0.975, df}, for df = 1..10
+T975 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571,
+        6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228}
+
+
+def ci95_halfwidth(x: pd.Series) -> float:
+    n = len(x)
+    if n < 2:
+        return float("nan")
+    return T975.get(n - 1, 1.96) * x.std(ddof=1) / np.sqrt(n)
+
 
 ORDER = ["mse", "mae", "median_pinball", "w0", "median_x3", "full"]
 LABELS = {
@@ -74,13 +87,17 @@ def main() -> None:
 
     df.sort_values(["variant", "seed"]).to_csv(args.root / "ablation_all_runs.csv", index=False)
 
-    summary, best = [], []
+    summary, numeric, best = [], [], []
     for v in variants:
         d = df[df.variant == v]
         row = {"Variant": LABELS.get(v, v), "n": len(d)}
+        num = {"variant": v, "n": len(d)}
         for m in metrics:
-            row[m] = f"{d[m].mean():.4f} ± {d[m].std(ddof=1):.4f}" if len(d) > 1 else f"{d[m].mean():.4f}"
+            mean, std, ci = d[m].mean(), d[m].std(ddof=1), ci95_halfwidth(d[m])
+            row[m] = f"{mean:.4f} ± {ci:.4f}" if len(d) > 1 else f"{mean:.4f}"
+            num.update({f"{m}_mean": mean, f"{m}_std": std, f"{m}_ci95": ci})
         summary.append(row)
+        numeric.append(num)
 
         if d.val_loss.notna().any():
             b = d.loc[d.val_loss.idxmin()]
@@ -88,14 +105,14 @@ def main() -> None:
                          **{m: round(b[m], 4) for m in metrics}})
 
     summary = pd.DataFrame(summary)
-    print("\nMean ± std over seeds (test set, averaged over lead times)\n")
+    print("\nMean ± 95% CI half-width over seeds (test set, averaged over lead times)\n")
     print(summary.to_string(index=False))
-    summary.to_csv(args.root / "ablation_summary.csv", index=False)
+    pd.DataFrame(numeric).to_csv(args.root / "ablation_summary.csv", index=False)
     (args.root / "ablation_summary.md").write_text(summary.to_markdown(index=False) if _has_tabulate() else summary.to_string(index=False))
 
     if best:
         best = pd.DataFrame(best)
-        print("\nBest-of-seeds by validation loss (paper protocol)\n")
+        print("\nBest-of-seeds by validation loss (original paper protocol)\n")
         print(best.to_string(index=False))
         best.to_csv(args.root / "ablation_best_of_seeds.csv", index=False)
 
