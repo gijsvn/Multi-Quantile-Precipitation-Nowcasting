@@ -32,7 +32,10 @@ set -euo pipefail
 
 REPO_DIR="$HOME/Multi-Quantile-Precipitation-Nowcasting"
 DATA_FILE="/home/gvannieuwkoop/hybrid-nowcasting-thesis-v0/data/kevin_18_18.h5"
-OUT_ROOT="/scratch-shared/$USER/weighted_loss"   # scratch: home quota filled up last time
+# Persistent results (home). Only the best checkpoint, config, metrics.csv and
+# test results are kept here (~50 MB per run, ~0.5 GB total); the full training log dir
+# (per-epoch plots etc.) lives on node-local $TMPDIR, so home quota stays safe.
+OUT_ROOT="$HOME/Multi-Quantile-Precipitation-Nowcasting/weighted_loss/results"
 VENV="$HOME/Multi-Quantile-Precipitation-Nowcasting/ablation/.venv"
 
 module purge
@@ -54,7 +57,7 @@ ARGS="${LOSSES[$L_IDX]#*|}"
 echo "Task $SLURM_ARRAY_TASK_ID: loss=$NAME seed=$SEED args=[$ARGS] host=$(hostname)"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
-TRAIN_DIR="$OUT_ROOT/train/$NAME/seed$SEED"
+TRAIN_DIR="$TMPDIR/train"
 EVAL_DIR="$OUT_ROOT/eval/$NAME/seed$SEED"
 
 if [[ -f "$EVAL_DIR/test_results.json" ]]; then
@@ -64,7 +67,6 @@ fi
 
 cp "$DATA_FILE" "$TMPDIR/data.h5"
 
-rm -rf "$TRAIN_DIR"   # drop a partial run from an interrupted attempt
 mkdir -p "$TRAIN_DIR" "$EVAL_DIR"
 
 cd "$REPO_DIR"

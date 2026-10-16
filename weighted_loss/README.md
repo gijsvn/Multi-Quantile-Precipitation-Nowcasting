@@ -28,7 +28,7 @@ cd weighted_loss && mkdir -p logs
 sbatch run_weighted_loss.slurm              # B-MSE and B-MAE
 # or, if the budget is short:  sbatch --array=0-4 run_weighted_loss.slurm   (B-MSE only)
 ```
-Outputs go to `/scratch-shared/$USER/weighted_loss` (scratch is cleaned after a while, so copy the results off soon). Finished tasks are skipped, so resubmitting resumes. Uses the venv `ablation/.venv`.
+Results go to `weighted_loss/results/` in the repo on your home directory. Training itself runs on node-local `$TMPDIR`; only the best checkpoint, config, metrics.csv and test results (~50 MB per run, ~0.5 GB for all 10) are copied to home; no per-epoch images. Check `myquota` before submitting: you need ~0.5 GB free plus room for the logs. Finished tasks are skipped, so resubmitting resumes. Uses the venv `ablation/.venv`.
 
 ## Into the paper's tables (laptop)
 ```bash

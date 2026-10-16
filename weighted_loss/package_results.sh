@@ -8,7 +8,7 @@
 # Usage: bash package_results.sh [OUT_ROOT]   -> ~/weighted_loss_results.tgz
 set -euo pipefail
 
-OUT_ROOT="${1:-/scratch-shared/$USER/weighted_loss}"
+OUT_ROOT="${1:-$HOME/Multi-Quantile-Precipitation-Nowcasting/weighted_loss/results}"
 STAGE=$(mktemp -d)
 
 for eval_dir in "$OUT_ROOT"/eval/*/seed*; do
