@@ -21,6 +21,7 @@ import numpy as np
 from util.load_dataset import PrecipitationDataModule
 from util.callbacks import LossPlotCallback, VisualizationCallback
 from util.quantile_loss import MultiQuantilePinballLoss
+from util.balanced_loss import BalancedLoss
 from models.lightning_base import LightningBaseModel
 from models.SmaAt_UNet.model import SmaAt_UNet
 
@@ -111,9 +112,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--loss",
         type=str,
-        choices=["quantile", "mse", "l1"],
+        choices=["quantile", "mse", "l1", "b-mse", "b-mae"],
         default="quantile",
-        help="Loss function to use.",
+        help="Loss function to use. b-mse / b-mae are the balanced losses of Shi et al. (2017).",
     )
 
     parser.add_argument(
@@ -194,6 +195,9 @@ def build_loss(
 
     if loss_name == "l1":
         return torch.nn.L1Loss(reduction=reduction)
+
+    if loss_name in ("b-mse", "b-mae"):
+        return BalancedLoss(kind=loss_name[2:], reduction=reduction)
 
     raise ValueError(f"Unknown loss function: {loss_name}")
 
