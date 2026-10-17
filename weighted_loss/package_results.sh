@@ -21,7 +21,7 @@ for eval_dir in "$OUT_ROOT"/eval/*/seed*; do
   mkdir -p "$logs" "$agg"
 
   # The laptop scripts read model_backbone from config.json
-  python - "$eval_dir/config.json" "$logs/config.json" <<'EOF'
+  python3 - "$eval_dir/config.json" "$logs/config.json" <<'EOF'
 import json, sys
 config = json.load(open(sys.argv[1]))
 config.setdefault("model_backbone", "SmaAt-UNet")
@@ -31,6 +31,30 @@ EOF
   cp "$eval_dir/metrics.csv" "$logs/" 2>/dev/null || true
   cp "$eval_dir/test_results.json" "$agg/${run}_test_results.json"
   echo "Packed $loss $(basename "$eval_dir")"
+done
+
+# Fig. 4 uses the best-of-5 run by validation loss, as for MSE/MAE/quantile:
+#   five_run_loss_experiments/<loss>/best_val_models/SmaAt-UNet/test_results.json
+for loss_dir in "$OUT_ROOT"/eval/*; do
+  loss=$(basename "$loss_dir")
+  best=$(python3 - "$loss_dir" <<'PY'
+import pathlib, re, sys
+runs = []
+for d in sorted(pathlib.Path(sys.argv[1]).glob("seed*")):
+    src = d / "source_checkpoint.txt"
+    if (d / "test_results.json").exists() and src.exists():
+        m = re.search(r"val_loss=([0-9.eE+-]+?)\.ckpt", src.read_text())
+        if m:
+            runs.append((float(m.group(1)), str(d)))
+print(min(runs)[1] if runs else "")
+PY
+)
+  [[ -n "$best" ]] || continue
+  dest="$STAGE/five_run_loss_experiments/$loss/best_val_models/SmaAt-UNet"
+  mkdir -p "$dest"
+  cp "$best/test_results.json" "$best/source_checkpoint.txt" "$dest/"
+  cp "$STAGE/five_run_loss_experiments/$loss/full_training_logs/SmaAt-UNet_${loss}_$(basename "$best")/config.json" "$dest/"
+  echo "Best-of-5 for $loss (lowest val loss): $(basename "$best")"
 done
 
 tar czf "$HOME/weighted_loss_results.tgz" -C "$STAGE" .
