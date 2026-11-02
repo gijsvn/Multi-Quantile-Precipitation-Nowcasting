@@ -252,7 +252,7 @@ def main():
                            for n in ("SR", "POD"))
             curves.append((key_, tau_, sr_, pod_, kn_, ci))
         if curves:
-            panels.append((f"Precision–recall (≥ {ev:g} mm/h)", curves))
+            panels.append((f"≥ {ev:g} mm/h", curves))
 
     table = pd.DataFrame(rows)
     table.to_csv(out / "matched_far.csv", index=False)
