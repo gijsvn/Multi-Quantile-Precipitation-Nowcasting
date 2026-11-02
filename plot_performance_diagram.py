@@ -1,5 +1,5 @@
 """
-Performance diagram + matched-FAR table from threshold_sweep.py outputs.
+Precision-recall (performance-diagram) figure + matched-FAR table from threshold_sweep.py outputs.
 
 Performance diagram (Roebber, 2009): POD (= recall) against success ratio
 SR = 1 - FAR (= precision), with CSI isolines and frequency-bias lines.
@@ -109,66 +109,69 @@ def display_curve(key, tau, sr, pod, ev, tau_max):
     kn = int(np.argmin(np.abs(tau - ev)))
     ok = np.where(tau <= tau_max)[0]
     end = max(int(ok[np.argmax(sr[ok])]), kn) + 1
-    return key, tau[:end], sr[:end], pod[:end], kn
+    return key, tau[:end], sr[:end], pod[:end], kn, None
 
 
-def nice_step(xmax):
-    for step in (0.01, 0.02, 0.025, 0.05, 0.1, 0.2):
-        if xmax / step <= 7:
-            return step
-    return 0.2
+# two-sided 95% Student-t critical values (scipy is not a dependency of this repo)
+T975 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262, 10: 2.228}
+
+
+def t_crit_95(df):
+    try:
+        from scipy import stats
+        return float(stats.t.ppf(0.975, df=df))
+    except ImportError:
+        return T975.get(df, 1.96)
+
+
+# Style of the paper's other figures (src/plot_metrics_across_lead_time_five_runs.py)
+RC_STYLE = {
+    "font.size": 14,
+    "axes.titlesize": 16,
+    "axes.labelsize": 15,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14,
+    "legend.fontsize": 13,
+    "legend.title_fontsize": 13,
+}
 
 
 def draw_panel(ax, curves, title, xmax=None):
-    """curves: list of (key, tau, SR, POD, k_native) with mean-over-runs SR/POD (already truncated)."""
+    """curves: list of (key, tau, SR, POD, k_native, ci) with mean-over-runs SR/POD (already truncated);
+    ci is None or (SR half-width, POD half-width) of the 95% CI at the native point."""
     if xmax is None:
-        xmax = max(float(np.nanmax(sr)) for _, _, sr, _, _ in curves) * 1.08
-    sr = np.linspace(1e-4, xmax, 300)
-    pod = np.linspace(1e-4, 1, 300)
-    SR, POD = np.meshgrid(sr, pod)
-    CSI = 1.0 / (1.0 / SR + 1.0 / POD - 1.0)
-    step = nice_step(xmax)
-    levels = np.arange(step, xmax, step)
-    cs = ax.contour(SR, POD, CSI, levels=levels, colors="0.7", linewidths=0.5)
-    y_lab = 0.93  # put CSI labels in a row near the top, where the isolines are near-vertical
-    manual = [(1.0 / (1.0 / c - 1.0 / y_lab + 1.0), y_lab) for c in levels]
-    ax.clabel(cs, fmt=lambda v: f"{v:g}", fontsize=5, inline=True, inline_spacing=1, manual=manual)
-    for b in (0.5, 1, 2, 4):
-        x = np.array([0, min(xmax, 1 / b)])
-        ax.plot(x, b * x, ls=(0, (3, 2)), color="0.55", lw=0.5, zorder=1)
-        xl, yl = (xmax, b * xmax) if b * xmax <= 1 else (1 / b, 1.0)
-        ax.text(xl, yl, f" {b:g}", fontsize=5, color="0.4",
-                ha="right" if b * xmax <= 1 else "center", va="bottom")
-    for key, tau, s, p, kn in curves:
+        xmax = max(float(np.nanmax(c[2])) for c in curves) * 1.2  # room for the legend (upper right)
+    for key, tau, s, p, kn, ci in curves:
         st = STYLE.get(key, dict(color="k", marker="x"))
-        ax.plot(s, p, color=st["color"], lw=1.0, zorder=3)
-        ax.plot(s[kn], p[kn], ls="none", ms=4.5, mec="k", mew=0.4, zorder=4, **st)
+        ax.plot(s, p, color=st["color"], linestyle="-", label=DISPLAY.get(key, f"{key[0]}:{key[1]}"))
+        ax.plot(s[kn], p[kn], ls="none", marker=st["marker"], markersize=9, color=st["color"], zorder=4)
+        if ci is not None:
+            ax.errorbar(s[kn], p[kn], xerr=ci[0], yerr=ci[1], fmt="none", ecolor=st["color"],
+                        elinewidth=1.2, capsize=3, zorder=3)
     ax.set_xlim(0, xmax)
     ax.set_ylim(0, 1)
-    ax.set_title(title, fontsize=7, pad=2)
-    ax.set_xlabel("Success ratio (1 − FAR)")
-    ax.grid(False)
+    ax.set_title(title)
+    ax.set_xlabel("1 - FAR (Precision)")
+    ax.set_ylabel("POD (Recall)")
+    ax.grid(True)
 
 
-def make_figure(panels, out, width=3.5):
+def make_figure(panels, out, figsize=(12, 4.75), dpi=180):
     """panels: list of (title, curves) for draw_panel."""
-    plt.rcParams.update({"font.size": 7, "axes.labelsize": 7, "xtick.labelsize": 6, "ytick.labelsize": 6})
-    fig, axes = plt.subplots(1, len(panels), figsize=(width, 2.35), sharey=True)
-    axes = np.atleast_1d(axes)
-    keys = []
-    for ax, (title, curves) in zip(axes, panels):
-        draw_panel(ax, curves, title)
-        keys += [c[0] for c in curves if c[0] not in keys]
-    axes[0].set_ylabel("POD")
-    keys = [k for k in ORDER if k in keys] + [k for k in keys if k not in ORDER]
-    h = [Line2D([], [], lw=1.0, ms=4, mec="k", mew=0.4, **STYLE.get(k, dict(color="k", marker="x"))) for k in keys]
-    l = [DISPLAY.get(k, f"{k[0]}:{k[1]}").replace("Quantile (", "").replace(")", "") for k in keys]
-    fig.legend(h, l, loc="lower center", ncol=len(l), fontsize=5.5, frameon=False, handlelength=1.4,
-               columnspacing=0.8, handletextpad=0.4, bbox_to_anchor=(0.5, 0.0))
-    fig.tight_layout(rect=(0, 0.06, 1, 1), w_pad=0.8)
-    for ext in ("pdf", "png"):
-        fig.savefig(out / f"performance_diagram.{ext}", dpi=300)
-    plt.close(fig)
+    with plt.rc_context(RC_STYLE):
+        fig, axes = plt.subplots(1, len(panels), figsize=figsize)
+        axes = np.atleast_1d(axes)
+        for ax, (title, curves) in zip(axes, panels):
+            draw_panel(ax, curves, title)
+            # legend handles as in the lead-time figure: line + marker
+            keys = [c[0] for c in curves]
+            h = [Line2D([], [], linestyle="-", markersize=8, **STYLE.get(k, dict(color="k", marker="x")))
+                 for k in keys]
+            ax.legend(h, [DISPLAY.get(k, f"{k[0]}:{k[1]}") for k in keys], loc="upper right")
+        plt.tight_layout()
+        for ext in ("pdf", "png"):
+            fig.savefig(out / f"performance_diagram.{ext}", dpi=dpi, bbox_inches="tight")
+        plt.close(fig)
 
 
 def main():
@@ -178,7 +181,10 @@ def main():
     p.add_argument("--thresholds", type=float, nargs="+", default=[10.0, 20.0])
     p.add_argument("--tau-max", type=float, default=40.0,
                    help="ignore decision thresholds above this (too few forecasts, noisy SR)")
-    p.add_argument("--width", type=float, default=3.5, help="figure width in inches (single column ~3.5)")
+    p.add_argument("--ci", action="store_true",
+                   help="draw 95%% CI error bars (over runs) at the native operating points")
+    p.add_argument("--figsize", type=float, nargs=2, default=[12, 4.75],
+                   help="figure size in inches (lead-time figure uses 6 x 4.75 per panel)")
     args = p.parse_args()
     out = args.output_dir or args.sweep_dir
     out.mkdir(parents=True, exist_ok=True)
@@ -238,9 +244,15 @@ def main():
             tau = runs[0][1]
             sr = np.mean([m["SR"] for m, _, _ in runs], axis=0)
             pod = np.mean([m["POD"] for m, _, _ in runs], axis=0)
-            curves.append(display_curve(key, tau, sr, pod, ev, args.tau_max))
+            key_, tau_, sr_, pod_, kn_, _ = display_curve(key, tau, sr, pod, ev, args.tau_max)
+            ci = None
+            if args.ci and len(runs) > 1:
+                t_crit = t_crit_95(len(runs) - 1)
+                ci = tuple(t_crit * np.std([m[n][kn] for m, _, kn in runs], ddof=1) / np.sqrt(len(runs))
+                           for n in ("SR", "POD"))
+            curves.append((key_, tau_, sr_, pod_, kn_, ci))
         if curves:
-            panels.append((rf"$\geq${ev:g} mm/h", curves))
+            panels.append((f"Precision–recall (≥ {ev:g} mm/h)", curves))
 
     table = pd.DataFrame(rows)
     table.to_csv(out / "matched_far.csv", index=False)
@@ -268,7 +280,7 @@ def main():
     (out / "matched_far.md").write_text("\n".join(md), encoding="utf-8")
     print("\n".join(md))
 
-    make_figure(panels, out, args.width)
+    make_figure(panels, out, tuple(args.figsize))
     print(f"Saved {out / 'performance_diagram.pdf'}")
 
 
