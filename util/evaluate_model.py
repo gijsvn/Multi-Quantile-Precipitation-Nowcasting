@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import Callable, List, Dict
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
@@ -18,7 +18,7 @@ def safe_div(num, den):
 class Evaluator:
     def __init__(
         self, 
-        model: LightningBaseModel | str, 
+        model: LightningBaseModel | str | Callable[[torch.Tensor, int], torch.Tensor], 
         dataloader: DataLoader,
         distribution_bin_edges: np.ndarray = np.array(
             [0.0, 0.6, 1.2, 2.4, 4.8, 9.6, 19.2, 38.4, 76.8],
@@ -30,8 +30,11 @@ class Evaluator:
         if isinstance(self.model, LightningBaseModel):
             self.model.eval()
             self.device = next(self.model.parameters()).device
-        elif self.model != "persistence":
-            raise ValueError("Model must be a LightningBaseModel or 'persistence' baseline")
+        elif self.model != "persistence" and not callable(self.model):
+            raise ValueError(
+                "Model must be a LightningBaseModel, the 'persistence' baseline, "
+                "or a callable baseline f(x, n_output_imgs) -> y_pred"
+            )
 
         self.dataloader = dataloader
         self.bin_edges = distribution_bin_edges
@@ -70,6 +73,10 @@ class Evaluator:
             elif self.model == "persistence":
                 # Repeat last input image across all output horizons
                 y_pred = x[:, -1, :, :].unsqueeze(1).repeat(1, y_true.shape[1], 1, 1)
+            else:
+                # Callable baseline (e.g. pySTEPS extrapolation): takes the normalized
+                # input batch [B, T_in, H, W] and returns normalized predictions [B, T_out, H, W]
+                y_pred = self.model(x, y_true.shape[1]).to(y_true.device, dtype=y_true.dtype)
 
             if y_pred.shape != y_true.shape:
                 raise ValueError(f"Shape mismatch: y_pred {y_pred.shape}, y_true {y_true.shape}")
