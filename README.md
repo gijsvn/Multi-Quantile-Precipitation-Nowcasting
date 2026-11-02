@@ -34,6 +34,7 @@ The main entry-point scripts are:
 | `train.py` | Train a SmaAt-UNet-based nowcasting model. |
 | `eval.py` | Evaluate a trained model on the validation or test split. |
 | `eval_persistence.py` | Evaluate the persistence baseline. |
+| `eval_baselines.py` | Evaluate persistence and pySTEPS Lagrangian extrapolation baselines. |
 | `compare_models.py` | Compare trained models and generate summary plots/visualizations. |
 
 ## Repository structure
@@ -58,6 +59,7 @@ The main entry-point scripts are:
 ├── train.py                              # Train MSE, MAE, or quantile models
 ├── eval.py                               # Evaluate trained models
 ├── eval_persistence.py                   # Evaluate persistence baseline
+├── eval_baselines.py                     # Evaluate persistence + pySTEPS extrapolation baselines
 └── compare_models.py                     # Compare models and generate paper-style figures
 ```
 
@@ -238,6 +240,22 @@ This produces:
 results/comparison/persistence/
 └── test_results.json
 ```
+
+## Optical-flow extrapolation baseline (pySTEPS)
+
+`eval_baselines.py` evaluates Eulerian persistence and a Lagrangian extrapolation nowcast with [pySTEPS](https://pysteps.github.io/) on the same samples, lead times, thresholds and metrics as `eval.py`. The extrapolation baseline estimates a Lucas-Kanade motion field from the most recent input frames (dB-transformed rain rates by default) and advects the last input frame with semi-Lagrangian extrapolation for all 12 lead times. Pixels advected in from outside the domain are set to zero. Both baselines are deterministic.
+
+```bash
+python eval_baselines.py \
+  --data-file data/precipitation_dataset.h5 \
+  --output-dir results/comparison/baselines \
+  --methods persistence extrapolation \
+  --evaluation-set test \
+  --precipitation-thresholds 0.5 10.0 20.0 \
+  --num-procs 16
+```
+
+This produces `results/comparison/baselines/{persistence,extrapolation}/test_results.json`. The extrapolation runs on CPU; `--num-procs` sets the number of samples processed in parallel. Use `--motion-frames` and `--motion-transform` to change how the motion field is estimated, and `--max-samples 20` for a quick test run.
 
 ## Comparing models
 
