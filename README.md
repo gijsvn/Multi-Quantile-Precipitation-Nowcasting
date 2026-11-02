@@ -243,7 +243,7 @@ results/comparison/persistence/
 
 ## Optical-flow extrapolation baseline (pySTEPS)
 
-`eval_baselines.py` evaluates Eulerian persistence and a Lagrangian extrapolation nowcast with [pySTEPS](https://pysteps.github.io/) on the same samples, lead times, thresholds and metrics as `eval.py`. The extrapolation baseline estimates a Lucas-Kanade motion field from the most recent input frames (dB-transformed rain rates by default) and advects the last input frame with semi-Lagrangian extrapolation for all 12 lead times. Pixels advected in from outside the domain are set to zero. Both baselines are deterministic.
+`eval_baselines.py` evaluates Eulerian persistence and a Lagrangian extrapolation nowcast with [pySTEPS](https://pysteps.github.io/) on the same samples, lead times, thresholds and metrics as `eval.py`. The extrapolation baseline estimates a Lucas-Kanade motion field from the most recent input frames (dB-transformed rain rates by default) and advects the last input frame with semi-Lagrangian extrapolation for all 12 lead times. Pixels advected in from outside the domain are set to zero. It needs `pysteps` and `opencv-python-headless` (both in `requirements.txt`). Both baselines are deterministic.
 
 ```bash
 python eval_baselines.py \

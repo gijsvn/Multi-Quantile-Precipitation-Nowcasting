@@ -106,11 +106,8 @@ def extrapolate_sample(
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        try:
-            velocity = motion.get_method("lucaskanade")(motion_input)
-        except Exception:
-            # e.g. no trackable features in (almost) dry fields: fall back to zero motion
-            velocity = np.zeros((2,) + rain_rate.shape[1:])
+        # pySTEPS itself returns zero motion when no features can be tracked (dry fields)
+        velocity = motion.get_method("lucaskanade")(motion_input)
 
         forecast = nowcasts.get_method("extrapolation")(
             rain_rate[-1],
@@ -130,6 +127,13 @@ class PySTEPSExtrapolation:
     """Callable baseline for Evaluator: f(x [B, T_in, H, W], n_out) -> [B, n_out, H, W]."""
 
     def __init__(self, num_procs: int, **sample_kwargs) -> None:
+        try:
+            import cv2  # noqa: F401  (Lucas-Kanade in pySTEPS needs OpenCV)
+        except ImportError as e:
+            raise ImportError(
+                "pySTEPS Lucas-Kanade requires OpenCV: pip install opencv-python-headless"
+            ) from e
+
         self.num_procs = num_procs
         self.sample_kwargs = sample_kwargs
         self.pool = Pool(num_procs) if num_procs > 1 else None
