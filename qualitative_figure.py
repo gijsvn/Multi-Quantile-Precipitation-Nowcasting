@@ -365,9 +365,12 @@ def render_sample(ds, models, sample, args, out_dir, quick=False):
         nr, nc = len(rows), len(cols)
 
     aspect = (ext[3] - ext[2]) / (ext[1] - ext[0])  # panel height / width (PlateCarree, as in the paper)
-    pw = args.width / (nc + 0.35)
+    # Fixed margins in inches, so the figure height follows the panel aspect
+    # ratio exactly and no vertical whitespace is left between rows.
+    m_left, m_right, m_top, m_bot, gap = 0.28, 0.62, 0.20, 0.02, 0.03
+    pw = (args.width - m_left - m_right - (nc - 1) * gap) / nc
     ph = pw * aspect
-    fig_h = ph * nr + 0.55
+    fig_h = m_top + m_bot + nr * ph + (nr - 1) * gap
 
     kw = {"subplot_kw": {"projection": ccrs.PlateCarree()}} if use_cartopy else {}
     fig, axes = plt.subplots(nr, nc, figsize=(args.width, fig_h), squeeze=False, **kw)
@@ -423,8 +426,10 @@ def render_sample(ds, models, sample, args, out_dir, quick=False):
     for i, t in enumerate(left):
         axes[i, 0].set_ylabel(t, fontsize=fs, labelpad=3)
 
-    fig.subplots_adjust(left=0.05, right=0.90, bottom=0.02, top=1 - 0.3 / fig_h, wspace=0.03, hspace=0.04)
-    cax = fig.add_axes([0.915, 0.08, 0.015, 0.84 - 0.3 / fig_h])
+    W = args.width
+    fig.subplots_adjust(left=m_left / W, right=1 - m_right / W, bottom=m_bot / fig_h, top=1 - m_top / fig_h,
+                        wspace=gap / pw, hspace=gap / ph)
+    cax = fig.add_axes([1 - m_right / W + 0.08 / W, m_bot / fig_h, 0.1 / W, 1 - (m_top + m_bot) / fig_h])
     cb = fig.colorbar(im, cax=cax, extend="max", ticks=RAIN_BOUNDS)
     cb.ax.tick_params(labelsize=fs - 1.5)
     cb.set_label("mm/h", fontsize=fs - 1)
