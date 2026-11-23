@@ -365,9 +365,12 @@ def render_sample(ds, models, sample, args, out_dir, quick=False):
         nr, nc = len(rows), len(cols)
 
     aspect = (ext[3] - ext[2]) / (ext[1] - ext[0])  # panel height / width (PlateCarree, as in the paper)
-    pw = args.width / (nc + 0.35)
+    # Size the figure so the grid cells match the panel aspect exactly; otherwise
+    # fixed-aspect (cartopy) axes shrink inside taller cells and leave vertical gaps.
+    L_, R_, B_, WS, HS, TOP_IN = 0.05, 0.90, 0.02, 0.03, 0.04, 0.3
+    pw = args.width * (R_ - L_) / (nc + WS * (nc - 1))
     ph = pw * aspect
-    fig_h = ph * nr + 0.55
+    fig_h = (ph * (nr + HS * (nr - 1)) + TOP_IN) / (1 - B_)
 
     kw = {"subplot_kw": {"projection": ccrs.PlateCarree()}} if use_cartopy else {}
     fig, axes = plt.subplots(nr, nc, figsize=(args.width, fig_h), squeeze=False, **kw)
@@ -423,7 +426,7 @@ def render_sample(ds, models, sample, args, out_dir, quick=False):
     for i, t in enumerate(left):
         axes[i, 0].set_ylabel(t, fontsize=fs, labelpad=3)
 
-    fig.subplots_adjust(left=0.05, right=0.90, bottom=0.02, top=1 - 0.3 / fig_h, wspace=0.03, hspace=0.04)
+    fig.subplots_adjust(left=L_, right=R_, bottom=B_, top=1 - TOP_IN / fig_h, wspace=WS, hspace=HS)
     cax = fig.add_axes([0.915, 0.08, 0.015, 0.84 - 0.3 / fig_h])
     cb = fig.colorbar(im, cax=cax, extend="max", ticks=RAIN_BOUNDS)
     cb.ax.tick_params(labelsize=fs - 1.5)
