@@ -381,10 +381,10 @@ def render_sample(ds, models, sample, args, out_dir, quick=False):
             ax = axes[ci, ri] if args.layout == "models-as-columns" else axes[ri, ci]
             if use_cartopy:
                 ax.set_extent(ext, crs=ccrs.PlateCarree())
-                ax.add_feature(cfeature.LAND, facecolor="#f2f2f2", zorder=0)
-                ax.add_feature(cfeature.OCEAN, facecolor="#dde8f0", zorder=0)
-                ax.add_feature(cfeature.COASTLINE, linewidth=0.4, edgecolor="#555555", zorder=3)
-                ax.add_feature(cfeature.BORDERS, linewidth=0.3, edgecolor="#777777", zorder=3)
+                ax.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#f2f2f2", zorder=0)
+                ax.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="#dde8f0", zorder=0)
+                ax.add_feature(cfeature.COASTLINE.with_scale("10m"), linewidth=0.4, edgecolor="#555555", zorder=3)
+                ax.add_feature(cfeature.BORDERS.with_scale("10m"), linewidth=0.3, edgecolor="#777777", zorder=3)
                 tr = {"transform": ccrs.PlateCarree()}
             else:
                 ax.set_facecolor("#f2f2f2")
@@ -394,6 +394,9 @@ def render_sample(ds, models, sample, args, out_dir, quick=False):
             ax.contour(np.linspace(ext[0], ext[1], f.shape[-1]), np.linspace(ext[3], ext[2], f.shape[-2]),
                        gt_c[L], levels=[thr], colors="k", linewidths=0.6, zorder=4, **tr)
             ax.set_xticks([]); ax.set_yticks([])
+            # Rasterize background, rain field and coastlines in the PDF (vector
+            # versions are ~100 MB); the GT contour and labels stay vector.
+            ax.set_rasterization_zorder(3.5)
             if not use_cartopy:
                 ax.set_xlim(ext[0], ext[1]); ax.set_ylim(ext[2], ext[3]); ax.set_aspect("auto")
 
