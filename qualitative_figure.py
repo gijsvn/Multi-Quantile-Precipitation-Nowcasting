@@ -400,6 +400,8 @@ def render_sample(ds, models, sample, args, out_dir, quick=False):
             if not use_cartopy:
                 ax.set_xlim(ext[0], ext[1]); ax.set_ylim(ext[2], ext[3]); ax.set_aspect("auto")
 
+            if not getattr(args, "annotate", False):
+                continue
             peak = fields[name][L].max()           # full-domain peak
             if name == "Observed":
                 txt = f"max {peak:.0f}"
@@ -466,6 +468,8 @@ def parse_args():
     common.add_argument("--width", type=float, default=7.0, help="Figure width in inches (PRL full width ~7.1).")
     common.add_argument("--fontsize", type=float, default=8)
     common.add_argument("--dpi", type=int, default=300)
+    common.add_argument("--annotate", action=argparse.BooleanOptionalAction, default=False,
+                        help="Write per-panel CSI and peak-intensity labels (off by default).")
 
     s = sub.add_parser("scan", parents=[common])
     s.add_argument("--batch-size", type=int, default=16)
