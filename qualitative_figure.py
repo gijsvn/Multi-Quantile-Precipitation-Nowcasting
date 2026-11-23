@@ -337,7 +337,7 @@ def render_sample(ds, models, sample, args, out_dir, quick=False):
     fields = {"Observed": gt}
     fields.update({n: preds[n][0] for n in names})
     labels = {"Observed": "Observed", "MSE": "MSE", "MAE": "MAE",
-              "q0.50": r"$q_{0.50}$", "q0.90": r"$q_{0.90}$", "q0.95": r"$q_{0.95}$"}
+              "q0.50": r"Q$_{0.50}$", "q0.90": r"Q$_{0.90}$", "q0.95": r"Q$_{0.95}$"}
 
     H, W = gt.shape[-2:]
     if args.crop == "auto":
